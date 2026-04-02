@@ -16,9 +16,309 @@ from sklearn.svm import SVR
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 import warnings
+
 warnings.filterwarnings('ignore')
 
 st.set_page_config(page_title="Cafe Sales Dashboard", page_icon="☕", layout="wide")
+
+# ===== Theme Selection =====
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "Dark Mode"  # default
+
+with st.sidebar:
+    st.markdown("##  Theme")
+    theme_choice = st.radio(
+        "Select theme:",
+        ["Light Mode", "Dark Mode"],
+        index=0 if st.session_state.theme_mode == "Light Mode" else 1
+    )
+    st.session_state.theme_mode = theme_choice
+# ============ DASHBOARD PAGES ============
+
+def apply_plotly_theme(fig, template, theme_mode, height=400):
+    """
+    Apply background and font colors to a Plotly figure based on theme_mode.
+    Works for line, bar, and pie charts.
+    """
+
+    # ===== Theme color Selection =====
+    if theme_mode == "Light Mode":
+        bg_color = "white"
+        font_color = "black"
+        slider_bg = "white"
+    else:
+        bg_color = "#0E1117"
+        font_color = "white"
+        slider_bg = "#0E1117"
+    
+    # General layout of chart
+    fig.update_layout(
+        template=template,
+        # colors set by theme
+        paper_bgcolor=bg_color,
+        plot_bgcolor=bg_color,
+        font=dict(color=font_color),
+        title=dict(font=dict(color=font_color)),  # Figure title
+        legend=dict(
+            font=dict(color=font_color),
+            title=dict(font=dict(color=font_color))
+        ),
+        # Adds zoom slider under charts
+        xaxis=dict(
+            rangeslider=dict(
+                visible=True,
+                bgcolor=slider_bg
+            ),
+            title=dict(font=dict(color=font_color)),
+            tickfont=dict(color=font_color)
+        ),
+        yaxis=dict(
+            title=dict(font=dict(color=font_color)),
+            tickfont=dict(color=font_color)
+        ),
+        height=height
+    )
+
+    # Special handling for pie charts
+    for trace in fig.data:
+        if getattr(trace, "type", None) == "pie":
+            fig.update_traces(
+                textfont=dict(color=font_color),
+                marker=dict(line=dict(color=bg_color, width=1))
+            )
+    return fig
+
+def apply_streamlit_theme(theme_mode):
+    # ===== Theme color Selection =====
+    if theme_mode == "Light Mode":
+        text = "#000000"
+        bg = "#FFFFFF"
+        sidebar_bg = "#F5F5F5"
+        border = "#DDDDDD"
+    else:
+        text = "#FFFFFF"
+        bg = "#0E1117"
+        sidebar_bg = "#1C1E26"
+        border = "#555"
+    
+    # CSS injection for custom styling using Markdown
+    st.markdown(f"""
+    <style>
+
+    /* Main app text */
+    html, body, [class*="css"] {{
+        color: {text};
+    }}
+
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {{
+        color: {text} !important;
+    }}
+
+    /* Paragraphs / markdown */
+    p, span {{
+        color: {text};
+    }}
+
+    /* Widget labels */
+    label {{
+        color: {text} !important;
+    }}
+
+    /* General Streamlit text containers */
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stText"] {{
+        color: {text};
+    }}
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] {{
+        background-color: {sidebar_bg};
+        color: {text};
+    }}
+
+    section[data-testid="stSidebar"] * {{
+        color: {text} !important;
+    }}
+
+    /* Metrics */
+    [data-testid="stMetricValue"] {{
+        color: {text};
+    }}
+
+    [data-testid="stMetricLabel"] {{
+        color: {text};
+    }}
+
+    /* Widget labels */
+    label {{
+        color: {text} !important;
+    }}
+
+    /* Expander text */
+    .streamlit-expanderHeader {{
+        color: {text};
+    }}
+
+    /* Tabs */
+    button[role="tab"] {{
+        color: {text};
+    }}
+
+    /* Dataframes */
+    [data-testid="stDataFrame"] {{
+        color: {text};
+    }}
+
+    /*
+    table {{
+        color: {text};
+        border: 1px solid {border};
+    }}
+    th, td {{
+        color: {text};
+    }}
+    */
+
+    /* Buttons */
+    button {{
+        color: {text} !important;
+    }}
+
+    </style>
+    """, unsafe_allow_html=True)
+
+def apply_global_theme(theme_mode):
+    # ===== Theme color Selection =====
+    if theme_mode == "Light Mode":
+        bg = "#FFFFFF"
+        secondary_bg = "#F5F5F5"
+        text = "#000000"
+        border = "#CCCCCC"
+        input_bg = "#FFFFFF"
+    else:
+        bg = "#0E1117"
+        secondary_bg = "#1C1E26"
+        text = "#FFFFFF"
+        border = "#555"
+        input_bg = "#1C1E26"
+    
+
+    st.markdown(f"""
+    <style>
+    /* Main app background */
+    .stApp {{
+        background-color: {bg};
+        color: {text};
+    }}
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] {{
+        background-color: {secondary_bg};
+        color: {text};
+    }}
+
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {{
+        color: {text};
+    }}
+
+    /* Buttons */
+    button {{
+        background-color: {secondary_bg};
+        color: {text};
+        border: 1px solid {border};
+    }}
+
+    /* Tables */
+    table {{
+        width:100%;
+        border-collapse: collapse;
+        background-color: {bg};
+        color: {text};
+    }}
+    table th, table td {{
+        border: 1px solid {border};
+        padding: 8px;
+    }}
+
+    /* Expander headers */
+    div[data-testid="stExpander"] > div {{
+        background-color: {secondary_bg};
+        color: {text};
+    }}
+
+    /* Inputs, sliders, selectboxes, radio buttons, checkboxes */
+    div[data-baseweb] {{
+        color: {text} !important;
+        background-color: {input_bg} !important;
+    }}
+
+    /* Slider handles and tracks */
+    div[data-testid="stSlider"] .rc-slider-track,
+    div[data-testid="stSlider"] .rc-slider-handle {{
+        background-color: {text} !important;
+        border-color: {text} !important;
+    }}
+
+    /* File uploader background */
+    div[data-testid="stFileUploader"] {{
+        background-color: {secondary_bg};
+        color: {text};
+    }}
+
+    /* Text inputs / text areas */
+    input, textarea {{
+        background-color: {input_bg} !important;
+        color: {text} !important;
+        border: 1px solid {border};
+    }}
+
+    /* Download button */
+    button[kind="secondary"] {{
+        background-color: {secondary_bg};
+        color: {text};
+        border: 1px solid {border};
+    }}
+
+    /* Sidebar widgets */
+    section[data-testid="stSidebar"] div[data-baseweb] {{
+        background-color: {secondary_bg} !important;
+        color: {text} !important;
+    }}
+    /* ===== EXPANDER THEME FIX ===== */
+
+    /* Expander container */
+    div[data-testid="stExpander"] details {{
+        background-color: {secondary_bg} !important;
+        border: 1px solid {border} !important;
+        border-radius: 6px;
+    }}
+
+    /* Expander header */
+    div[data-testid="stExpander"] summary {{
+        background-color: {secondary_bg} !important;
+        color: {text} !important;
+        padding: 6px;
+    }}
+
+    /* Expander header when open */
+    div[data-testid="stExpander"] details[open] summary {{
+        background-color: {secondary_bg} !important;
+        color: {text} !important;
+    }}
+
+    /* Expander content */
+    div[data-testid="stExpander"] details > div {{
+        background-color: {bg} !important;
+        color: {text} !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# Apply theme immediately
+apply_global_theme(st.session_state.theme_mode)
+apply_streamlit_theme(st.session_state.theme_mode)
 
 # ============ DATABASE FUNCTIONS ============
 
@@ -177,9 +477,9 @@ def process_flexible_csv(df, date_col, product_cols, product_info):
         cur.close()
         
         if error_count > 0:
-            st.warning(f"⚠️ Imported {success_count} records, {error_count} rows had errors")
+            st.warning(f" Imported {success_count} records, {error_count} rows had errors")
         else:
-            st.success(f"✅ Successfully imported {success_count} records!")
+            st.success(f" Successfully imported {success_count} records!")
         
         return True
         
@@ -402,10 +702,10 @@ def get_summary_stats(df):
 
 def upload_page():
     # ----- Section header -----
-    st.title("☕ Cafe Sales Dashboard")
+    st.title(" Cafe Sales Dashboard")
     st.markdown("---")
     
-    st.header("📤 Upload Sales Data")
+    st.header(" Upload Sales Data")
     st.write("Upload your CSV file - I'll automatically detect the format!")
     
     # ----- File Uploader -----
@@ -417,7 +717,7 @@ def upload_page():
     )
     
     # Shows example of CSV file format
-    with st.expander("📋 Supported CSV Formats"):
+    with st.expander(" Supported CSV Formats"):
         st.write("**Format 1: Multiple Products**")
         example1 = pd.DataFrame({
             'Date': ['01/03/2025', '02/03/2025'],
@@ -425,7 +725,8 @@ def upload_page():
             'Americano': [100, 103],
             'Plain Croissant': [25, 30]
         })
-        st.dataframe(example1)
+        
+        st.table(example1)
         
         st.info("""
         **Flexible Features:**
@@ -442,19 +743,19 @@ def upload_page():
         try:
             df = pd.read_csv(uploaded_file)
             
-            st.write("**📊 File Preview:**")
-            st.dataframe(df.head(10), use_container_width=True)
-            
+            st.write("** File Preview:**")
+            #st.dataframe(df.head(10), use_container_width=True)
+            st.table(df.head(10))
             st.write(f"**Rows:** {len(df)} | **Columns:** {len(df.columns)}")
             
             st.markdown("---")
-            st.subheader("🎯 Column Mapping")
+            st.subheader(" Column Mapping")
             
             # ----- Detect Date Column -----
             # Detects which columns contain dates
             # User can confirm or change the detected column
             date_col = detect_date_column(df)
-            st.info(f"📅 Detected date column: **{date_col}**")
+            st.info(f" Detected date column: **{date_col}**")
             
             date_col_selected = st.selectbox(
                 "Confirm or change date column:",
@@ -466,10 +767,10 @@ def upload_page():
             other_cols = [col for col in df.columns if col != date_col_selected]
             
             if len(other_cols) == 0:
-                st.error("❌ No product columns found!")
+                st.error(" No product columns found!")
                 return
             
-            st.write(f"**🛍️ Found {len(other_cols)} product column(s):**")
+            st.write(f"** Found {len(other_cols)} product column(s):**")
             
             # User can pick which columns are product sales
             product_cols = st.multiselect(
@@ -479,10 +780,10 @@ def upload_page():
             )
             
             if not product_cols:
-                st.warning("⚠️ Please select at least one product column")
+                st.warning(" Please select at least one product column")
                 return
             
-            st.write("**📝 Customize product names and categories:**")
+            st.write("** Customize product names and categories:**")
             
             # ===== Product Name and Categories =====
             product_info = {}
@@ -538,7 +839,7 @@ def upload_page():
             6. Refreshes page
             """
             with col1:
-                if st.button("📥 Import to Database", type="primary", use_container_width=True):
+                if st.button(" Import to Database", type="primary", use_container_width=True):
                     with st.spinner("Importing to database..."):
                         if process_flexible_csv(df, date_col_selected, product_cols, product_info):
                             st.balloons()
@@ -547,7 +848,7 @@ def upload_page():
             
             # ===== Cancel Button =====
             with col2:
-                if st.button("🔄 Cancel", use_container_width=True):
+                if st.button(" Cancel", use_container_width=True):
                     st.rerun()
                     
         except Exception as e:
@@ -568,24 +869,24 @@ def upload_page():
         cur.close()
         
         if record_count > 0:
-            st.success(f"💾 Database contains **{record_count}** sales records across **{product_count}** products")
+            st.success(f" Database contains **{record_count}** sales records across **{product_count}** products")
             
             # ===== Navigate Buttons =====
             col1, col2, col3 = st.columns([1, 1, 2])
             with col1:
-                if st.button("📊 View Dashboard", use_container_width=True):
+                if st.button(" View Dashboard", use_container_width=True):
                     st.session_state.data_loaded = True
                     st.rerun()
             
             with col2:
-                if st.button("🗑️ Manage Data", use_container_width=True):
+                if st.button(" Manage Data", use_container_width=True):
                     st.session_state.show_delete = True
                     st.rerun()
             
             # ===== Data Deletion Section =====
             if st.session_state.get('show_delete', False):
                 st.markdown("---")
-                st.subheader("🗑️ Delete Data")
+                st.subheader(" Delete Data")
                 
                 delete_option = st.radio(
                     "What would you like to delete?",
@@ -617,11 +918,11 @@ def upload_page():
                         affected_records = cur.fetchone()[0]
                         cur.close()
                         
-                        st.warning(f"⚠️ This will delete **{affected_records}** sales records")
+                        st.warning(f" This will delete **{affected_records}** sales records")
                         
                         col1, col2 = st.columns(2)
                         with col1:
-                            if st.button("🗑️ Confirm Delete", type="primary", use_container_width=True):
+                            if st.button(" Confirm Delete", type="primary", use_container_width=True):
                                 cur = conn.cursor()
                                 cur.execute("""
                                     DELETE FROM daily_sales 
@@ -629,12 +930,12 @@ def upload_page():
                                 """, (del_date_range[0], del_date_range[1]))
                                 conn.commit()
                                 cur.close()
-                                st.success(f"✅ Deleted {affected_records} records!")
+                                st.success(f" Deleted {affected_records} records!")
                                 st.session_state.show_delete = False
                                 st.rerun()
                         
                         with col2:
-                            if st.button("❌ Cancel", use_container_width=True):
+                            if st.button(" Cancel", use_container_width=True):
                                 st.session_state.show_delete = False
                                 st.rerun()
                 
@@ -664,11 +965,11 @@ def upload_page():
                         affected_records = cur.fetchone()[0]
                         cur.close()
                         
-                        st.warning(f"⚠️ This will delete **{affected_records}** sales records")
+                        st.warning(f" This will delete **{affected_records}** sales records")
                         
                         col1, col2 = st.columns(2)
                         with col1:
-                            if st.button("🗑️ Confirm Delete", type="primary", use_container_width=True):
+                            if st.button(" Confirm Delete", type="primary", use_container_width=True):
                                 cur = conn.cursor()
                                 cur.execute("""
                                     DELETE FROM daily_sales 
@@ -683,342 +984,38 @@ def upload_page():
                                 conn.commit()
                                 cur.close()
                                 
-                                st.success(f"✅ Deleted {affected_records} records!")
+                                st.success(f" Deleted {affected_records} records!")
                                 st.session_state.show_delete = False
                                 st.rerun()
                         
                         with col2:
-                            if st.button("❌ Cancel", use_container_width=True):
+                            if st.button(" Cancel", use_container_width=True):
                                 st.session_state.show_delete = False
                                 st.rerun()
                 
                 elif delete_option == "Everything":
-                    st.error("⚠️ **WARNING: This will delete ALL data!**")
+                    st.error(" **WARNING: This will delete ALL data!**")
                     
                     confirm_text = st.text_input("Type 'DELETE ALL' to confirm:")
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("🗑️ Delete Everything", type="primary", use_container_width=True, disabled=(confirm_text != "DELETE ALL")):
+                        if st.button(" Delete Everything", type="primary", use_container_width=True, disabled=(confirm_text != "DELETE ALL")):
                             cur = conn.cursor()
                             cur.execute("TRUNCATE TABLE daily_sales CASCADE;")
                             cur.execute("TRUNCATE TABLE products CASCADE;")
                             conn.commit()
                             cur.close()
-                            st.success("✅ All data deleted!")
+                            st.success(" All data deleted!")
                             st.session_state.show_delete = False
                             st.rerun()
                     
                     with col2:
-                        if st.button("❌ Cancel", use_container_width=True):
+                        if st.button(" Cancel", use_container_width=True):
                             st.session_state.show_delete = False
                             st.rerun()
 
 # ============ DASHBOARD PAGES ============
-
-def apply_plotly_theme(fig, template, theme_mode, height=400):
-    """
-    Apply background and font colors to a Plotly figure based on theme_mode.
-    Works for line, bar, and pie charts.
-    """
-
-    # ===== Theme color Selection =====
-    if theme_mode == "Light Mode":
-        bg_color = "white"
-        font_color = "black"
-        slider_bg = "white"
-    else:
-        bg_color = "#0E1117"
-        font_color = "white"
-        slider_bg = "#0E1117"
-    
-    # General layout of chart
-    fig.update_layout(
-        template=template,
-        # colors set by theme
-        paper_bgcolor=bg_color,
-        plot_bgcolor=bg_color,
-        font=dict(color=font_color),
-        title=dict(font=dict(color=font_color)),  # Figure title
-        legend=dict(
-            font=dict(color=font_color),
-            title=dict(font=dict(color=font_color))
-        ),
-        # Adds zoom slider under charts
-        xaxis=dict(
-            rangeslider=dict(
-                visible=True,
-                bgcolor=slider_bg
-            ),
-            title=dict(font=dict(color=font_color)),
-            tickfont=dict(color=font_color)
-        ),
-        yaxis=dict(
-            title=dict(font=dict(color=font_color)),
-            tickfont=dict(color=font_color)
-        ),
-        height=height
-    )
-
-    # Special handling for pie charts
-    for trace in fig.data:
-        if getattr(trace, "type", None) == "pie":
-            fig.update_traces(
-                textfont=dict(color=font_color),
-                marker=dict(line=dict(color=bg_color, width=1))
-            )
-    return fig
-
-def apply_streamlit_theme(theme_mode):
-    # ===== Theme color Selection =====
-    if theme_mode == "Light Mode":
-        text = "#000000"
-        bg = "#FFFFFF"
-        sidebar_bg = "#F5F5F5"
-        border = "#DDDDDD"
-    else:
-        text = "#FFFFFF"
-        bg = "#0E1117"
-        sidebar_bg = "#1C1E26"
-        border = "#555"
-    
-    # CSS injection for custom styling using Markdown
-    st.markdown(f"""
-    <style>
-
-    /* Main app text */
-    html, body, [class*="css"] {{
-        color: {text};
-    }}
-
-    /* Headers */
-    h1, h2, h3, h4, h5, h6 {{
-        color: {text} !important;
-    }}
-
-    /* Paragraphs / markdown */
-    p, span {{
-        color: {text};
-    }}
-
-    /* Widget labels */
-    label {{
-        color: {text} !important;
-    }}
-
-    /* General Streamlit text containers */
-    [data-testid="stMarkdownContainer"],
-    [data-testid="stText"] {{
-        color: {text};
-    }}
-
-    /* Sidebar */
-    section[data-testid="stSidebar"] {{
-        background-color: {sidebar_bg};
-        color: {text};
-    }}
-
-    section[data-testid="stSidebar"] * {{
-        color: {text} !important;
-    }}
-
-    /* Metrics */
-    [data-testid="stMetricValue"] {{
-        color: {text};
-    }}
-
-    [data-testid="stMetricLabel"] {{
-        color: {text};
-    }}
-
-    /* Widget labels */
-    label {{
-        color: {text} !important;
-    }}
-
-    /* Expander text */
-    .streamlit-expanderHeader {{
-        color: {text};
-    }}
-
-    /* Tabs */
-    button[role="tab"] {{
-        color: {text};
-    }}
-
-    /* Dataframes */
-    [data-testid="stDataFrame"] {{
-        color: {text};
-    }}
-
-    table {{
-        color: {text};
-        border: 1px solid {border};
-    }}
-
-    th, td {{
-        color: {text};
-    }}
-
-    /* Buttons */
-    button {{
-        color: {text} !important;
-    }}
-
-    </style>
-    """, unsafe_allow_html=True)
-
-def apply_global_theme(theme_mode):
-    # ===== Theme color Selection =====
-    if theme_mode == "Light Mode":
-        bg = "#FFFFFF"
-        secondary_bg = "#F5F5F5"
-        text = "#000000"
-        border = "#CCCCCC"
-        input_bg = "#FFFFFF"
-    else:
-        bg = "#0E1117"
-        secondary_bg = "#1C1E26"
-        text = "#FFFFFF"
-        border = "#555"
-        input_bg = "#1C1E26"
-    
-
-    st.markdown(f"""
-    <style>
-    /* Main app background */
-    .stApp {{
-        background-color: {bg};
-        color: {text};
-    }}
-
-    /* Sidebar */
-    section[data-testid="stSidebar"] {{
-        background-color: {secondary_bg};
-        color: {text};
-    }}
-
-    /* Headers */
-    h1, h2, h3, h4, h5, h6 {{
-        color: {text};
-    }}
-
-    /* Buttons */
-    button {{
-        background-color: {secondary_bg};
-        color: {text};
-        border: 1px solid {border};
-    }}
-
-    /* DataFrames */
-    [data-testid="stDataFrame"] * {{
-        color: {text} !important;
-        background-color: {bg} !important;
-    }}
-
-    /* Tables */
-    table {{
-        width:100%;
-        border-collapse: collapse;
-        background-color: {bg};
-        color: {text};
-    }}
-
-    table th, table td {{
-        border: 1px solid {border};
-        padding: 8px;
-    }}
-
-    /* Expander headers */
-    div[data-testid="stExpander"] > div {{
-        background-color: {secondary_bg};
-        color: {text};
-    }}
-
-    /* Inputs, sliders, selectboxes, radio buttons, checkboxes */
-    div[data-baseweb] {{
-        color: {text} !important;
-        background-color: {input_bg} !important;
-    }}
-
-    /* Slider handles and tracks */
-    div[data-testid="stSlider"] .rc-slider-track,
-    div[data-testid="stSlider"] .rc-slider-handle {{
-        background-color: {text} !important;
-        border-color: {text} !important;
-    }}
-
-    /* File uploader background */
-    div[data-testid="stFileUploader"] {{
-        background-color: {secondary_bg};
-        color: {text};
-    }}
-
-    /* Text inputs / text areas */
-    input, textarea {{
-        background-color: {input_bg} !important;
-        color: {text} !important;
-        border: 1px solid {border};
-    }}
-
-    /* Download button */
-    button[kind="secondary"] {{
-        background-color: {secondary_bg};
-        color: {text};
-        border: 1px solid {border};
-    }}
-
-    /* Sidebar widgets */
-    section[data-testid="stSidebar"] div[data-baseweb] {{
-        background-color: {secondary_bg} !important;
-        color: {text} !important;
-    }}
-    /* ===== EXPANDER THEME FIX ===== */
-
-    /* Expander container */
-    div[data-testid="stExpander"] details {{
-        background-color: {secondary_bg} !important;
-        border: 1px solid {border} !important;
-        border-radius: 6px;
-    }}
-
-    /* Expander header */
-    div[data-testid="stExpander"] summary {{
-        background-color: {secondary_bg} !important;
-        color: {text} !important;
-        padding: 6px;
-    }}
-
-    /* Expander header when open */
-    div[data-testid="stExpander"] details[open] summary {{
-        background-color: {secondary_bg} !important;
-        color: {text} !important;
-    }}
-
-    /* Expander content */
-    div[data-testid="stExpander"] details > div {{
-        background-color: {bg} !important;
-        color: {text} !important;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# ===== Theme Selection =====
-if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "Dark Mode"  # default
-
-with st.sidebar:
-    st.markdown("## 🎨 Theme")
-    theme_choice = st.radio(
-        "Select theme:",
-        ["Light Mode", "Dark Mode"],
-        index=0 if st.session_state.theme_mode == "Light Mode" else 1
-    )
-    st.session_state.theme_mode = theme_choice
-
-# Apply theme immediately
-apply_global_theme(st.session_state.theme_mode)
-apply_streamlit_theme(st.session_state.theme_mode)
 
 def analysis_dashboard():
     """
@@ -1041,17 +1038,17 @@ def analysis_dashboard():
         'Croissants': "#F460AA"    # pinkish
     }
 
-    st.title("☕ Sales Analysis Dashboard")
+    st.title(" Sales Analysis Dashboard")
     
     df = load_sales_data()
     # Error handling
     if df is None or df.empty:
-        st.warning("⚠️ No data in database")
+        st.warning(" No data in database")
         return
 
     # ===== Sidebar filters =====
     # Date Range Filter
-    st.sidebar.header("📊 Filters")
+    st.sidebar.header(" Filters")
     min_date = df['sale_date'].min()
     max_date = df['sale_date'].max()
     
@@ -1090,7 +1087,7 @@ def analysis_dashboard():
 
     # ===== Key Metrics =====
     stats = get_summary_stats(filtered_df)
-    st.header("📈 Key Metrics")
+    st.header(" Key Metrics")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Units Sold", f"{stats['total_sales']:,.0f}")
     col2.metric("Average Daily Sales", f"{stats['avg_daily']:.1f}")
@@ -1099,7 +1096,7 @@ def analysis_dashboard():
     st.markdown("---")
 
     # ===== Sales Visualizations =====
-    st.header("📊 Sales Visualizations")
+    st.header(" Sales Visualizations")
     
     daily_sales = filtered_df.groupby(['sale_date', 'product_name', 'category'])['units_sold'].sum().reset_index()
 
@@ -1173,7 +1170,7 @@ def prediction_dashboard():
     """
 
     # ===== Page Header =====
-    st.title("🔮 Sales Prediction Dashboard")
+    st.title(" Sales Prediction Dashboard")
     st.markdown("**ML-Powered Food Waste Minimization**")
     st.markdown("---")
 
@@ -1181,7 +1178,7 @@ def prediction_dashboard():
     df = load_sales_data()
     # Data validation - Checks if data exists in the database
     if df is None or df.empty:
-        st.warning("⚠️ No data available for predictions")
+        st.warning(" No data available for predictions")
         return
     
     # ===== Initialise Session State =====
@@ -1213,10 +1210,10 @@ def prediction_dashboard():
         product_colors[prod] = base_colors[i % len(base_colors)]
 
     tabs = st.tabs([
-        "📈 Predictions",
-        "🎯 Model Evaluation",
-        "🏆 Top Products",
-        "🔍 Detailed View"
+        " Predictions",
+        " Model Evaluation",
+        " Top Products",
+        " Detailed View"
     ])
 
     # =================== Tab 1: Predictions ===================
@@ -1240,7 +1237,7 @@ def prediction_dashboard():
             training_weeks = st.slider("Training period (weeks):", 4, 8, 4)
 
         if not selected_products:
-            st.info("👆 Select at least one product")
+            st.info(" Select at least one product")
             return
         
         # User selects which machine learning algorithm will be used
@@ -1251,7 +1248,7 @@ def prediction_dashboard():
         )
 
         # When user clicks the button, model is trained and prediction generated
-        generate_button = st.button("🚀 Generate Predictions", type="primary")
+        generate_button = st.button(" Generate Predictions", type="primary")
         if generate_button:
             st.session_state.predictions = {}
             st.session_state.prediction_scores = {}
@@ -1268,7 +1265,7 @@ def prediction_dashboard():
                 # Converts raw data into ready features
                 X, y, feature_cols = prepare_ml_features(df, product, training_weeks)
                 if X is None:
-                    st.warning(f"⚠️ Not enough data for {product}")
+                    st.warning(f" Not enough data for {product}")
                     continue
 
                 # Train all ML models and store their performance metrics
@@ -1282,6 +1279,7 @@ def prediction_dashboard():
 
                 # Generate future sales predictions for the
                 # next 28 days 
+
                 product_data = df[df['product_name'] == product].sort_values('sale_date')
                 predictions_df = predict_future_sales(model, product_data, feature_cols, days_ahead=28)
 
@@ -1292,9 +1290,9 @@ def prediction_dashboard():
 
                 progress_bar.progress((idx + 1) / len(selected_products))
 
-            status_text.text("✅ Complete!")
+            status_text.text(" Complete!")
             progress_bar.empty()
-            st.success(f"✅ Generated predictions for {len(st.session_state.predictions)} product(s)")
+            st.success(f" Generated predictions for {len(st.session_state.predictions)} product(s)")
             st.markdown("---")
 
         # ----- Display each product prediction -----
@@ -1322,7 +1320,7 @@ def prediction_dashboard():
             window_days = window_days_map[prediction_window]
 
             for product in st.session_state.predictions:
-                with st.expander(f"📦 {product} - Next 4 Weeks", expanded=True):
+                with st.expander(f" {product} - Next 4 Weeks", expanded=True):
                     pred_df = st.session_state.predictions[product]
                     pred_df = pred_df.head(window_days).copy()
                     scores = st.session_state.prediction_scores[product]
@@ -1356,7 +1354,7 @@ def prediction_dashboard():
                     st.plotly_chart(fig, use_container_width=True)
 
                     # ===== Daily / Weekly / Production Tabs =====
-                    tab1, tab2= st.tabs(["📅 Daily", "📊 Weekly"])
+                    tab1, tab2= st.tabs([" Daily", " Weekly"])
                     with tab1:
                         display_df = pred_df.copy()
                         display_df['date'] = display_df['date'].dt.strftime('%Y-%m-%d')
@@ -1379,12 +1377,12 @@ def prediction_dashboard():
     # Compare machine learning algorithms to determine
     # which model performs best for a selected product
     with tabs[1]:
-        st.header("🎯 Model Evaluation")
+        st.header(" Model Evaluation")
         eval_product = st.selectbox("Product:", all_products)
         eval_weeks = st.slider("Training weeks:", 4, 8, 4, key="eval")
 
         # Trains all algorithms and compares them
-        if st.button("📊 Evaluate All Models"):
+        if st.button(" Evaluate All Models"):
             X, y, feature_cols = prepare_ml_features(df, eval_product, eval_weeks)
             if X is not None:
                 trained_models, model_scores = train_models(X, y)
@@ -1453,7 +1451,7 @@ def prediction_dashboard():
 
                 comp_df = pd.DataFrame(comparison_results)
 
-                st.subheader("📊 Training Period Comparison")
+                st.subheader(" Training Period Comparison")
                 st.markdown(comp_df.to_html(index=False), unsafe_allow_html=True)
                 
                 best_row = comp_df.sort_values("RMSE").iloc[0]
@@ -1494,7 +1492,7 @@ def prediction_dashboard():
     # =================== Tab 3: Top Products ===================
     # Identify the best selling products within a time period
     with tabs[2]:
-        st.header("🏆 Top Products")
+        st.header(" Top Products")
         # Allows user to analyse sales over the last
         # 4 weeks/8 weeks or entire period
         period = st.selectbox("Period:", ["Last 4 weeks", "Last 8 weeks", "All time"])
@@ -1510,7 +1508,7 @@ def prediction_dashboard():
         # ===== Top Coffee Products =====
         # Calculates and displays the top 3 coffee products
         with col1:
-            st.subheader("☕ Top 3 Coffees")
+            st.subheader(" Top 3 Coffees")
             coffee = period_df[period_df['category'] == 'coffee']
             top_coffee = coffee.groupby('product_name')['units_sold'].sum().sort_values(ascending=False).head(3)
             for idx, (prod, sales) in enumerate(top_coffee.items(), 1):
@@ -1530,7 +1528,7 @@ def prediction_dashboard():
         # ===== Top Croissant Products =====
         # Calculates and displays the top 3 croissant products
         with col2:
-            st.subheader("🥐 Top 3 Croissants")
+            st.subheader(" Top 3 Croissants")
             croissant = period_df[period_df['category'] == 'croissants']
             if not croissant.empty:
                 top_croissant = croissant.groupby('product_name')['units_sold'].sum().sort_values(ascending=False).head(3)
@@ -1552,7 +1550,7 @@ def prediction_dashboard():
     # Generates a detailed prediction table for a specific product
     # Allows user to download result as a CSV file
     with tabs[3]:
-        st.header("🔍 Detailed View")
+        st.header(" Detailed View")
         detail_product = st.selectbox("Product:", all_products, key="detail")
         col1, col2 = st.columns(2)
         with col1:
@@ -1560,7 +1558,7 @@ def prediction_dashboard():
         with col2:
             detail_algo = st.selectbox("Algorithm:",
                 ["Random Forest", "Gradient Boosting", "Linear Regression", "Support Vector Regression"])
-        if st.button("🔮 Generate"):
+        if st.button(" Generate"):
             X, y, feature_cols = prepare_ml_features(df, detail_product, detail_weeks)
             if X is not None:
                 trained_models, _ = train_models(X, y)
@@ -1582,7 +1580,7 @@ def prediction_dashboard():
                     # Allow user to download prediction results
                     csv = display.to_csv(index=False)
                     st.download_button(
-                        "📥 Download CSV",
+                        " Download CSV",
                         csv,
                         f"predictions_{detail_product}_{datetime.now().strftime('%Y%m%d')}.csv",
                         "text/csv"
@@ -1597,7 +1595,7 @@ def main():
 
     # ===== Accessibility & Theme Controls =====
     st.sidebar.markdown("---")
-    st.sidebar.header("♿ Accessibility")
+    st.sidebar.header(" Accessibility")
 
     font_size = st.sidebar.slider(
         "Font Size",
@@ -1605,23 +1603,6 @@ def main():
         max_value=26,
         value=16
     )
-
-    # ===== Theme Toggle =====
-    #if "theme_mode" not in st.session_state:
-        #st.session_state.theme_mode = "Dark Mode"  # default dark
-
-    #with st.sidebar:
-        #st.markdown("## 🎨 Theme")
-        #theme_choice = st.radio(
-            #"Select theme:",
-            #["Light Mode", "Dark Mode"],
-            #index=0 if st.session_state.theme_mode == "Light Mode" else 1
-        #)
-        #st.session_state.theme_mode = theme_choice
-
-    # Apply global CSS to Streamlit components
-    #apply_global_theme(st.session_state.theme_mode)
-    #apply_streamlit_theme(st.session_state.theme_mode)
 
     # Apply font size globally
     st.markdown(
@@ -1640,13 +1621,13 @@ def main():
         upload_page()
     else:
         # Mode selector in sidebar
-        st.sidebar.title("🎛️ Dashboard Mode")
-        mode = st.sidebar.radio("Select Mode:", ["📊 Analysis", "🔮 Predictions"], label_visibility="collapsed")
+        st.sidebar.title(" Dashboard Mode")
+        mode = st.sidebar.radio("Select Mode:", [" Analysis", " Predictions"], label_visibility="collapsed")
         st.sidebar.markdown("---")
-        if st.sidebar.button("📤 Upload New Data", use_container_width=True):
+        if st.sidebar.button(" Upload New Data", use_container_width=True):
             st.session_state.data_loaded = False
             st.rerun()
-        if mode == "📊 Analysis":
+        if mode == " Analysis":
             analysis_dashboard()
         else:
             prediction_dashboard()
