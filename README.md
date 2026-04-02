@@ -68,7 +68,7 @@ System allows for multiple regression algorithms to be used for forecasts:
 ## Running the Application
 1. Clone the repository
 ```Bash
-git clone 
+git clone https://github.com/FULLTEST1/Group-Project
 ```
 3. Install dependencies
 ```Bash
